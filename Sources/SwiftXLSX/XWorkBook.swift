@@ -613,7 +613,7 @@ final public class XWorkBook{
     }
     
     /// prepare files for Xlsx file
-    private func preparefiles(for filename:String) -> String{
+    private func preparefiles(for filePath: URL) -> URL {
         var CachePath = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
         
         CachePath = "\(CachePath)/tmpxls"
@@ -677,25 +677,23 @@ final public class XWorkBook{
             i += 1
         }
         
-        
-        let filepath = "\(CachePath)/\(filename)"
         let fileManager = FileManager()
         do {
-            try fileManager.zipItem(at: URL(fileURLWithPath: BasePath), to: URL(fileURLWithPath: filepath), shouldKeepParent: false)
+            try fileManager.zipItem(at: URL(fileURLWithPath: BasePath), to: filePath, shouldKeepParent: false)
         } catch {
             print("Creation of ZIP archive failed with error:\(error)")
         }
         self.RemoveFile(path: BasePath)
-        return filepath
+        return filePath
     }
     
     
     /// write xlxs file and return path
-    public func save(_ filename:String) -> String {
+    public func save(_ filePath:URL) -> URL {
         self.BuildStyles()
         self.BuildSheets()
         self.BuildMediaDrawings()
-        return self.preparefiles(for: filename)
+        return self.preparefiles(for: filePath)
     }
     
     /// generate example xlsx file
@@ -1015,7 +1013,7 @@ final public class XWorkBook{
         
         
         
-        let fileid = book.save("example.xlsx")
+        let fileid = book.save(URL.cachesDirectory.appendingPathComponent("example.xlsx"))
         print("<<<File XLSX generated!>>>")
         print("\(fileid)")
         return true
