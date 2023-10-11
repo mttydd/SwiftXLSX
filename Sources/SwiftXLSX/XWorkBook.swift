@@ -613,7 +613,7 @@ final public class XWorkBook{
     }
     
     /// prepare files for Xlsx file
-    private func preparefiles(for filePath: URL) -> URL {
+    private func preparefiles(for filePath: URL, overwrite: Bool = false) -> URL {
         var CachePath = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
         
         CachePath = "\(CachePath)/tmpxls"
@@ -676,6 +676,15 @@ final public class XWorkBook{
             
             i += 1
         }
+
+        // delete file if already exists
+        if overwrite && FileManager.default.fileExists(atPath: filePath.path) {
+            do {
+                try FileManager.default.removeItem(atPath: filePath.path)
+            } catch {
+                print("Could not delete file, probably read-only filesystem")
+            }
+        }
         
         let fileManager = FileManager()
         do {
@@ -689,11 +698,11 @@ final public class XWorkBook{
     
     
     /// write xlxs file and return path
-    public func save(_ filePath:URL) -> URL {
+    public func save(_ filePath:URL, overwrite: Bool = false) -> URL {
         self.BuildStyles()
         self.BuildSheets()
         self.BuildMediaDrawings()
-        return self.preparefiles(for: filePath)
+        return self.preparefiles(for: filePath, overwrite: overwrite)
     }
     
     /// generate example xlsx file
