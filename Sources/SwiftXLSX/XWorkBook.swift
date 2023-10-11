@@ -1012,7 +1012,7 @@ final public class XWorkBook{
         
         
         let cacheDirectoryPaths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-        let fileid = book.save(arrayPaths[0].appendingPathComponent("example.xlsx"))
+        let fileid = book.save(cacheDirectoryPaths[0].appendingPathComponent("example.xlsx"))
         print("<<<File XLSX generated!>>>")
         print("\(fileid)")
         return true
