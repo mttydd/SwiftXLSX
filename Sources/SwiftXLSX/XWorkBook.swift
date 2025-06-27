@@ -23,46 +23,45 @@ import UIKit
 #endif
 import ZIPFoundation
 
-
-
-final public class XWorkBook{
-    private var Sheets:[XSheet] = []
+public final class XWorkBook {
+    private var Sheets: [XSheet] = []
     
     // for styles
-    private var Fonts:[UInt64:(String,Int)] = [:]
-    private var Fills:[String] = []
-    private var colorsid:[String] = []
-    private var Bgcolor:[String] = []
-    private var xfs:[UInt64:(String,Int)] = [:]
-    private var Borders:[String] = []
-    private var Drawings:[String] = []
+    private var Fonts: [UInt64: (String, Int)] = [:]
+    private var Fills: [String] = []
+    private var colorsid: [String] = []
+    private var Bgcolor: [String] = []
+    private var xfs: [UInt64: (String, Int)] = [:]
+    private var Borders: [String] = []
+    private var Drawings: [String] = []
     
-    private var vals:[String] = []
-    private var valss:Set<String> = Set([])
-    private var CHARSIZE:[UInt64:CGFloat] = [:]
+    private var vals: [String] = []
+    private var valss: Set<String> = Set([])
+    private var CHARSIZE: [UInt64: CGFloat] = [:]
     
     public init() {}
     
-    var count:Int {
+    var count: Int {
         return self.Sheets.count
     }
     
-    func removeAll(){
+    func removeAll() {
         self.Sheets.removeAll()
     }
     
-    func append(_ newElement: XSheet){
+    func append(_ newElement: XSheet) {
         self.Sheets.append(newElement)
     }
     
     /// create and return new sheet
-    public func NewSheet(_ title:String) -> XSheet{
+    public func NewSheet(_ title: String) -> XSheet {
         let Sheet = XSheet(title.XSheetTitle())
         self.append(Sheet)
         return Sheet
     }
+
     /// clear all local data for building xlsx
-    private func clearlocaldata(){
+    private func clearlocaldata() {
         self.Fonts.removeAll()
         self.colorsid.removeAll()
         self.Fills.removeAll()
@@ -76,56 +75,55 @@ final public class XWorkBook{
         self.Bgcolor.removeAll()
     }
     
-    private func findFont(_ cell:XCell){
+    private func findFont(_ cell: XCell) {
         let font = cell.Font!
         
-        var idval:UInt64 = cell.Font!.bold ? 1 : 0
+        var idval: UInt64 = cell.Font!.bold ? 1 : 0
         idval += cell.Font!.italic ? 2 : 0
         idval += cell.Font!.strike ? 3 : 0
         idval += cell.Font!.underline ? 15 : 0
         idval += UInt64(cell.Font!.FontSize) * 10
         idval += (UInt64(cell.Font!.Font.ind())+1) * 10000
         
-        
-        let col:ColorClass = cell.color
+        let col: ColorClass = cell.color
         if let hex = col.Hex {
             if let index = self.colorsid.firstIndex(of: hex) {
                 idval += (UInt64(index)+1) * 1000000
-            }else{
+            } else {
                 self.colorsid.append(hex)
                 idval += (UInt64(self.colorsid.count)+1) * 1000000
             }
         }
         
-        if let (_,ind) = self.Fonts[idval] {
+        if let (_, ind) = self.Fonts[idval] {
             cell.idFont = ind
-        }else{
+        } else {
             let xml = "<font>\(font.bold ? "<b/>" : "")\(font.italic ? "<i/>" : "")\(font.strike ? "<strike/>" : "")\(font.underline ? "<u/>" : "")<sz val=\"\(font.FontSize)\"/><color rgb=\"\(cell.color.Hex!)\"/><name val=\"\(font.Font)\"/></font>"
             
             cell.idFont = self.Fonts.count
-            self.Fonts[idval] = (xml,self.Fonts.count)
+            self.Fonts[idval] = (xml, self.Fonts.count)
         }
     }
     
-    private func findFills(_ cell:XCell){
+    private func findFills(_ cell: XCell) {
         let hexcolor = cell.colorbackground.Hex!
         
         if let index = self.Bgcolor.firstIndex(of: hexcolor) {
             cell.idFill = index
-        }else{
+        } else {
             self.Bgcolor.append(hexcolor)
             let Fontxml = "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"\(hexcolor)\"/><bgColor indexed=\"64\"/></patternFill></fill>"
             
             if let indexfill = self.Fills.firstIndex(of: Fontxml) {
                 cell.idFill = indexfill
-            }else{
+            } else {
                 self.Fills.append(Fontxml)
                 cell.idFill = self.Fills.count-1
             }
         }
     }
     
-    private func findxf(_ cell:XCell,_ sheet:XSheet){
+    private func findxf(_ cell: XCell, _ sheet: XSheet) {
         cell.idStyle = -1
         var idval: UInt64 = cell.alignmentHorizontal.id()
         idval += cell.alignmentVertical.id() * 10
@@ -134,7 +132,7 @@ final public class XWorkBook{
         idval += UInt64(cell.idFont) * 1000000
         
         for merge in sheet.merge {
-            if merge.inrect(cell.coords!){
+            if merge.inrect(cell.coords!) {
                 if let cellmain = sheet.Get(XCoords(row: merge.row, col: merge.col)) {
                     cell.idStyle = cellmain.idStyle
                     cell.idFont = cellmain.idFont
@@ -144,40 +142,40 @@ final public class XWorkBook{
             }
         }
         if cell.idStyle == -1 {
-            if let (_,ind) = self.xfs[idval] {
+            if let (_, ind) = self.xfs[idval] {
                 cell.idStyle = ind
-            }else{
+            } else {
                 let xf = "<xf fontId=\"\(cell.idFont)\" numFmtId=\"0\" fillId=\"\(cell.idFill)\" borderId=\"\(cell.Border ? "1" : "0")\" applyNumberFormat=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"\(cell.alignmentHorizontal.str())\" vertical=\"\(cell.alignmentVertical.str())\" textRotation=\"0\" wrapText=\"true\" shrinkToFit=\"false\"/></xf>"
                 cell.idStyle = self.xfs.count
-                self.xfs[idval] = (xf,self.xfs.count)
+                self.xfs[idval] = (xf, self.xfs.count)
             }
         }
     }
     
-    private func findVals(_ cell:XCell){
+    private func findVals(_ cell: XCell) {
         cell.idVal = nil
         if let val = cell.value {
             switch val {
             case .text(let strval):
-                let key:UInt64 =  cell.Font!.Font.ind()*1000000+UInt64(cell.Font!.FontSize)
-                var sf:CGFloat = 0
+                let key: UInt64 = cell.Font!.Font.ind() * 1000000+UInt64(cell.Font!.FontSize)
+                var sf: CGFloat = 0
                 if let sizefont = self.CHARSIZE[key] {
                     sf = sizefont
-                }else{
+                } else {
                     let size = cell.Font!.getfont!.Rectfor("0")
                     self.CHARSIZE[key] = size.width
                     sf = size.width
                 }
-                cell.width = Int(sf * CGFloat(strval.count) + 10)
+                cell.width = Int(sf * CGFloat(strval.count)+10)
                 
                 if self.valss.contains(strval) {
                     if let indexval = self.vals.firstIndex(of: strval) {
                         cell.idVal = indexval
                     }
-                }else{
+                } else {
                     self.vals.append(strval)
                     self.valss.insert(strval)
-                    cell.idVal = self.vals.count - 1
+                    cell.idVal = self.vals.count-1
                 }
             default:
                 break
@@ -185,7 +183,7 @@ final public class XWorkBook{
         }
     }
     
-    private func BuildMediaDrawings(){
+    private func BuildMediaDrawings() {
         self.Drawings.removeAll()
         var indexsheet = 0
         for sheet in self {
@@ -194,19 +192,17 @@ final public class XWorkBook{
             sheet.drawingsxmlrels = nil
             sheet.drawingsSheetrels = nil
             
-            var cellwithicon:[(xic:XImageCell,Coords:XCoords)] = []
-            var keys:[String] = []
-            
+            var cellwithicon: [(xic: XImageCell, Coords: XCoords)] = []
+            var keys: [String] = []
             
             for cell in sheet {
-                
-                guard let cellvalue = cell.value else {continue}
+                guard let cellvalue = cell.value else { continue }
                 switch cellvalue {
                 case .icon(let XIC):
                     if keys.firstIndex(of: XIC.key) == nil {
                         keys.append(XIC.key)
                     }
-                    cellwithicon.append((xic:XIC,Coords:cell.coords!))
+                    cellwithicon.append((xic: XIC, Coords: cell.coords!))
                 default:
                     continue
                 }
@@ -215,8 +211,8 @@ final public class XWorkBook{
             if cellwithicon.count > 0 {
                 /// we have some cell with images
                 
-                let Xml:NSMutableString = NSMutableString()
-                let Xmlrel:NSMutableString = NSMutableString()
+                let Xml = NSMutableString()
+                let Xmlrel = NSMutableString()
                 Xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>")
                 Xml.append("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">")
                 var index = 1
@@ -234,27 +230,22 @@ final public class XWorkBook{
                 Xml.setString("")
                 Xmlrel.setString("")
                 
-                
-                
-                
                 Xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>")
                 let str = """
-<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:x3Unk="http://schemas.microsoft.com/office/drawing/2010/slicer" xmlns:sle15="http://schemas.microsoft.com/office/drawing/2012/slicer">
-"""
+                <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:x3Unk="http://schemas.microsoft.com/office/drawing/2010/slicer" xmlns:sle15="http://schemas.microsoft.com/office/drawing/2012/slicer">
+                """
                 Xml.append(str)
                 for cell in cellwithicon {
                     let index = keys.firstIndex(of: cell.xic.key)!
                     
                     let EMU = 9525.0
                     
-                    let y:UInt32 = UInt32(cell.xic.size.height*EMU)
-                    let x:UInt32 = UInt32(cell.xic.size.width*EMU)
-                    
-                    
+                    let y = UInt32(cell.xic.size.height * EMU)
+                    let x = UInt32(cell.xic.size.width * EMU)
                     
                     let cellstr = """
-<xdr:oneCellAnchor><xdr:from><xdr:col>\(cell.Coords.col-1)</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>\(cell.Coords.row-1)</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="\(x)" cy="\(y)"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="0" name="\(cell.xic.key).png"/><xdr:cNvPicPr preferRelativeResize="0"/></xdr:nvPicPr><xdr:blipFill><a:blip cstate="print" r:embed="rId\(index+1)"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></xdr:spPr></xdr:pic><xdr:clientData fLocksWithSheet="0"/></xdr:oneCellAnchor>
-"""
+                    <xdr:oneCellAnchor><xdr:from><xdr:col>\(cell.Coords.col-1)</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>\(cell.Coords.row-1)</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="\(x)" cy="\(y)"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="0" name="\(cell.xic.key).png"/><xdr:cNvPicPr preferRelativeResize="0"/></xdr:nvPicPr><xdr:blipFill><a:blip cstate="print" r:embed="rId\(index+1)"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></xdr:spPr></xdr:pic><xdr:clientData fLocksWithSheet="0"/></xdr:oneCellAnchor>
+                    """
                     Xml.append(cellstr)
                 }
                 Xml.append("</xdr:wsDr>")
@@ -264,56 +255,55 @@ final public class XWorkBook{
         }
     }
     
-    private func BuildStyles(){
+    private func BuildStyles() {
         self.clearlocaldata()
         
-        self.Fonts[0] = ("<font><sz val=\"10\"/><color rgb=\"FF000000\"/><name val=\"Arial\"/></font>",0)
+        self.Fonts[0] = ("<font><sz val=\"10\"/><color rgb=\"FF000000\"/><name val=\"Arial\"/></font>", 0)
         
         self.Fills.append("<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FFFFFFFF\"/><bgColor indexed=\"64\"/></patternFill></fill>")
         
         self.Bgcolor.append("FFFFFFFF")
         
-        self.xfs[0] = ("<xf fontId=\"0\" numFmtId=\"0\" fillId=\"0\" borderId=\"0\" applyNumberFormat=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" textRotation=\"0\" wrapText=\"true\" shrinkToFit=\"false\"/></xf>",0)
+        self.xfs[0] = ("<xf fontId=\"0\" numFmtId=\"0\" fillId=\"0\" borderId=\"0\" applyNumberFormat=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" textRotation=\"0\" wrapText=\"true\" shrinkToFit=\"false\"/></xf>", 0)
         
-        self.Borders.append("<border/>");
-        self.Borders.append("<border><left style=\"thin\"><color rgb=\"FF000000\"/></left><right style=\"thin\"><color rgb=\"FF000000\"/></right><top style=\"thin\"><color rgb=\"FF000000\"/></top><bottom style=\"thin\"><color rgb=\"FF000000\"/></bottom></border>");
-        
+        self.Borders.append("<border/>")
+        self.Borders.append("<border><left style=\"thin\"><color rgb=\"FF000000\"/></left><right style=\"thin\"><color rgb=\"FF000000\"/></right><top style=\"thin\"><color rgb=\"FF000000\"/></top><bottom style=\"thin\"><color rgb=\"FF000000\"/></bottom></border>")
         
         for sheet in self {
             for cell in sheet {
                 self.findFont(cell)
                 self.findFills(cell)
                 
-                self.findxf(cell , sheet)
+                self.findxf(cell, sheet)
                 self.findVals(cell)
             }
         }
     }
     
-    private func BuildSheet(_ sheet:XSheet){
+    private func BuildSheet(_ sheet: XSheet) {
         sheet.buildindex()
-        let Xml:NSMutableString = NSMutableString()
+        let Xml = NSMutableString()
         Xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
         Xml.append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:mx=\"http://schemas.microsoft.com/office/mac/excel/2008/main\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:mv=\"urn:schemas-microsoft-com:mac:vml\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\" xmlns:x15=\"http://schemas.microsoft.com/office/spreadsheetml/2010/11/main\"  xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\" xmlns:xm=\"http://schemas.microsoft.com/office/excel/2006/main\">")
         
-        let (numrows,numcols) = sheet.GetMaxRowCol
+        let (numrows, numcols) = sheet.GetMaxRowCol
         
-        if numrows>0 {
+        if numrows > 0 {
             Xml.append("<dimension ref=\"A1:\(XSheet.EncodeNumberABC(numcols-1))\(numrows)\"/>")
         }
         
         Xml.append("<sheetViews>")
-        if (sheet.fix.row + sheet.fix.col) == 0 {
+        if (sheet.fix.row+sheet.fix.col) == 0 {
             Xml.append("<sheetView workbookViewId=\"0\" />")
-        }else if sheet.fix.row > 0 , sheet.fix.col == 0 {
+        } else if sheet.fix.row > 0, sheet.fix.col == 0 {
             Xml.append("<sheetView workbookViewId=\"0\">")
             Xml.append("<pane ySplit=\"\(sheet.fix.row)\" topLeftCell=\"A\(sheet.fix.row+1)\" activePane=\"bottomLeft\" state=\"frozen\"/>")
             Xml.append("</sheetView>")
-        }else if sheet.fix.row == 0 , sheet.fix.col > 0 {
+        } else if sheet.fix.row == 0, sheet.fix.col > 0 {
             Xml.append("<sheetView workbookViewId=\"0\">")
             Xml.append("<pane xSplit=\"\(sheet.fix.col)\" topLeftCell=\"\(XSheet.EncodeNumberABC(sheet.fix.col))1\" activePane=\"topRight\" state=\"frozen\"/>")
             Xml.append("</sheetView>")
-        }else{
+        } else {
             Xml.append("<sheetView workbookViewId=\"0\">")
             Xml.append("<pane xSplit=\"\(sheet.fix.col)\" ySplit=\"\(sheet.fix.row)\" topLeftCell=\"\(XSheet.EncodeNumberABC(sheet.fix.col))\(sheet.fix.row+1)\" activePane=\"bottomRight\" state=\"frozen\"/>")
             Xml.append("</sheetView>")
@@ -321,46 +311,44 @@ final public class XWorkBook{
         Xml.append("</sheetViews>")
         Xml.append("<sheetFormatPr  customHeight=\"1\" defaultColWidth=\"12.63\" defaultRowHeight=\"15.75\" outlineLevelRow=\"0\" outlineLevelCol=\"0\"/>")
         
-        if numcols>0 {
+        if numcols > 0 {
             Xml.append("<cols>")
-            for col:Int in 1...numcols {
-                var wcalc:CGFloat = 50
+            for col: Int in 1...numcols {
+                var wcalc: CGFloat = 50
                 if sheet.ColW.count > 0 {
                     let w = sheet.ColW[col]
                     if w != nil {
                         wcalc = CGFloat(w!)
-                    }else{
-                        wcalc  = CGFloat(sheet.GetMaxWidth(col, numrows))
+                    } else {
+                        wcalc = CGFloat(sheet.GetMaxWidth(col, numrows))
                     }
-                }else{
-                    wcalc  = CGFloat(sheet.GetMaxWidth(col, numrows))
+                } else {
+                    wcalc = CGFloat(sheet.GetMaxWidth(col, numrows))
                 }
-                wcalc = wcalc * (0.16666016 * 1.2)//0.12499512
+                wcalc = wcalc * (0.16666016 * 1.2) // 0.12499512
                 
                 Xml.append("<col min=\"\(col)\" max=\"\(col == numcols ? 16384 : col)\" width=\"\(wcalc)\" customWidth=\"1\" style=\"0\"/>")
             }
             Xml.append("</cols>")
         }
         
-        
-        
         Xml.append("<sheetData>")
         var hasimages = false
         if numrows == 0 {
             Xml.append("<row r=\"1\" spans=\"1:1\"><c r=\"A1\"/></row>")
-        }else{
-            for row:Int in 1...numrows {
-                let colls:NSMutableString = NSMutableString()
-                for col:Int in 1...numcols {
+        } else {
+            for row: Int in 1...numrows {
+                let colls: NSMutableString = .init()
+                for col: Int in 1...numcols {
                     if let cell = sheet.Get(XCoords(row: row, col: col)) {
                         /// output  values
                         if let value = cell.value {
                             switch value {
-                            case .text(_):
+                            case .text:
                                 if cell.idVal != nil {
                                     /// this is text value and insert like id
                                     colls.append("<c r=\"\(XSheet.EncodeNumberABC(col-1))\(row)\" s=\"\(cell.idStyle)\" t=\"s\"><v>\(cell.idVal!)</v></c>")
-                                }else{
+                                } else {
                                     /// output empty cell
                                     colls.append("<c r=\"\(XSheet.EncodeNumberABC(col-1))\(row)\" s=\"\(cell.idStyle >= 0 ? cell.idStyle : 0)\" />")
                                 }
@@ -368,27 +356,27 @@ final public class XWorkBook{
                                 colls.append("<c r=\"\(XSheet.EncodeNumberABC(col-1))\(row)\" s=\"\(cell.idStyle)\" ><v>\(String(format: "%.3f", val))</v></c>")
                             case .float(let val):
                                 colls.append("<c r=\"\(XSheet.EncodeNumberABC(col-1))\(row)\" s=\"\(cell.idStyle)\" ><v>\(String(format: "%.3f", val))</v></c>")
-                            case.integer(let val):
+                            case .integer(let val):
                                 colls.append("<c r=\"\(XSheet.EncodeNumberABC(col-1))\(row)\" s=\"\(cell.idStyle)\" ><v>\(val)</v></c>")
                             case .long(let val):
                                 colls.append("<c r=\"\(XSheet.EncodeNumberABC(col-1))\(row)\" s=\"\(cell.idStyle)\" ><v>\(val)</v></c>")
-                            case .icon(_):
+                            case .icon:
                                 /// output empty cell
                                 hasimages = true
                                 colls.append("<c r=\"\(XSheet.EncodeNumberABC(col-1))\(row)\" s=\"\(cell.idStyle >= 0 ? cell.idStyle : 0)\" />")
                             }
-                        }else{
+                        } else {
                             colls.append("<c r=\"\(XSheet.EncodeNumberABC(col-1))\(row)\" s=\"\(cell.idStyle >= 0 ? cell.idStyle : 0)\" />")
                         }
                         
-                    }else{
+                    } else {
                         /// no cell with coords (row,col)
                         colls.append("<c r=\"\(XSheet.EncodeNumberABC(col-1))\(row)\" s=\"0\" />")
                     }
                 }
                 if let ht = sheet.RowH[row] {
                     Xml.append("<row r=\"\(row)\" spans=\"1:\(numcols)\" ht=\"\(ht)\" customHeight=\"1\">")
-                }else{
+                } else {
                     Xml.append("<row r=\"\(row)\" spans=\"1:\(numcols)\">")
                 }
                 Xml.append(String(colls))
@@ -422,13 +410,9 @@ final public class XWorkBook{
         }
     }
     
-    
-    
-    
-    
     /// Check exist directory and create if don't exist
     @discardableResult
-    private func CheckCreateDirectory(path pathdirectory:String) -> Bool{
+    private func CheckCreateDirectory(path pathdirectory: String) -> Bool {
         let filemanager = FileManager.default
         if !filemanager.fileExists(atPath: pathdirectory) {
             do {
@@ -443,7 +427,7 @@ final public class XWorkBook{
     
     /// remove file or directory
     @discardableResult
-    private func RemoveFile(path pathfile:String) -> Bool{
+    private func RemoveFile(path pathfile: String) -> Bool {
         do {
             try FileManager.default.removeItem(atPath: pathfile)
         } catch {
@@ -455,7 +439,7 @@ final public class XWorkBook{
     
     /// write string buffer to file
     @discardableResult
-    private func Write(data strData:String, tofile path:String) -> Bool{
+    private func Write(data strData: String, tofile path: String) -> Bool {
         do {
             try strData.write(toFile: path, atomically: true, encoding: .utf8)
         } catch {
@@ -465,54 +449,54 @@ final public class XWorkBook{
         return true
     }
     
-    private var rels:String {
+    private var rels: String {
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\" />\n<Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties\" Target=\"docProps/app.xml\" />\n<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>"
     }
     
-    private var SharedStrings:String {
-        let Xml:NSMutableString = NSMutableString()
+    private var SharedStrings: String {
+        let Xml = NSMutableString()
         Xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
         Xml.append("<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" uniqueCount=\"\(self.vals.count)\">")
-        for val in vals {
+        for val in self.vals {
             Xml.append("<si><t>\(val.XmlPrep())</t></si>")
         }
         Xml.append("</sst>")
         return String(Xml)
     }
     
-    private var StyleStrings:String {
-        let Xml:NSMutableString = NSMutableString()
+    private var StyleStrings: String {
+        let Xml = NSMutableString()
         
         Xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
         Xml.append("<styleSheet xml:space=\"preserve\" xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">")
         Xml.append("<numFmts count=\"0\"/>")
         
-        if Fonts.isEmpty {
+        if self.Fonts.isEmpty {
             Xml.append("<fonts count=\"0\"/>")
-        }else{
-            Xml.append("<fonts count=\"\(Fonts.count)\">")
-            let ar = Fonts.values.sorted(by: {  $0.1 < $1.1})
-            for (font,_) in ar {
+        } else {
+            Xml.append("<fonts count=\"\(self.Fonts.count)\">")
+            let ar = self.Fonts.values.sorted(by: { $0.1 < $1.1 })
+            for (font, _) in ar {
                 Xml.append(font)
             }
             Xml.append("</fonts>")
         }
         
-        if Fills.isEmpty {
+        if self.Fills.isEmpty {
             Xml.append("<fills count=\"0\"/>")
-        }else{
-            Xml.append("<fills count=\"\(Fills.count)\">")
-            for fill in Fills {
+        } else {
+            Xml.append("<fills count=\"\(self.Fills.count)\">")
+            for fill in self.Fills {
                 Xml.append(fill)
             }
             Xml.append("</fills>")
         }
         
-        if Borders.isEmpty {
+        if self.Borders.isEmpty {
             Xml.append("<borders count=\"0\"/>")
-        }else{
-            Xml.append("<borders count=\"\(Borders.count)\">")
-            for border in Borders {
+        } else {
+            Xml.append("<borders count=\"\(self.Borders.count)\">")
+            for border in self.Borders {
                 Xml.append(border)
             }
             Xml.append("</borders>")
@@ -522,13 +506,13 @@ final public class XWorkBook{
         Xml.append("<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/>")
         Xml.append("</cellStyleXfs>")
         
-        if xfs.isEmpty {
+        if self.xfs.isEmpty {
             Xml.append("<cellXfs count=\"0\"/>")
-        }else{
-            Xml.append("<cellXfs count=\"\(xfs.count)\">")
+        } else {
+            Xml.append("<cellXfs count=\"\(self.xfs.count)\">")
             
-            let ar = xfs.values.sorted(by: {  $0.1 < $1.1})
-            for (xf,_) in ar {
+            let ar = self.xfs.values.sorted(by: { $0.1 < $1.1 })
+            for (xf, _) in ar {
                 Xml.append(xf)
             }
             Xml.append("</cellXfs>")
@@ -542,15 +526,15 @@ final public class XWorkBook{
         return String(Xml)
     }
     
-    private var ContentTypesStrings:String {
-        let Xml:NSMutableString = NSMutableString()
+    private var ContentTypesStrings: String {
+        let Xml = NSMutableString()
         Xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
         Xml.append("<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">")
         Xml.append("<Default ContentType=\"application/xml\" Extension=\"xml\"/>")
         Xml.append("<Default ContentType=\"image/png\" Extension=\"png\"/>")
         
         Xml.append("<Default ContentType=\"application/vnd.openxmlformats-package.relationships+xml\" Extension=\"rels\"/>")
-        for i in 1...Sheets.count {
+        for i in 1...self.Sheets.count {
             Xml.append("<Override ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\" PartName=\"/xl/worksheets/sheet\(i).xml\"/>")
         }
         
@@ -559,12 +543,11 @@ final public class XWorkBook{
         Xml.append("<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\" />")
         Xml.append("<Override PartName=\"/xl/theme/theme1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\" />")
         
-        for i in 1...Sheets.count {
-            if Sheets[i-1].drawingsSheetrels != nil {
+        for i in 1...self.Sheets.count {
+            if self.Sheets[i-1].drawingsSheetrels != nil {
                 Xml.append("<Override ContentType=\"application/vnd.openxmlformats-officedocument.drawing+xml\" PartName=\"/xl/drawings/drawing\(i).xml\"/>")
             }
         }
-        
         
         Xml.append("<Override ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\" PartName=\"/xl/styles.xml\"/>")
         Xml.append("<Override ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\" PartName=\"/xl/workbook.xml\"/>")
@@ -572,25 +555,25 @@ final public class XWorkBook{
         return String(Xml)
     }
     
-    private var WorkBookXmlRelsStrings:String {
-        let Xml:NSMutableString = NSMutableString()
+    private var WorkBookXmlRelsStrings: String {
+        let Xml = NSMutableString()
         let str = """
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
-<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
-"""
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+        <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+        <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+        <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
+        """
         Xml.append(str)
-        for i in 1...Sheets.count {
+        for i in 1...self.Sheets.count {
             Xml.append("<Relationship Id=\"rId\(i+3)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet\(i).xml\"/>")
         }
         Xml.append("</Relationships>")
         return String(Xml)
     }
     
-    private var WorkBookXmlStrings:String {
-        let Xml:NSMutableString = NSMutableString()
+    private var WorkBookXmlStrings: String {
+        let Xml = NSMutableString()
         
         Xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
         Xml.append("""
@@ -604,8 +587,8 @@ final public class XWorkBook{
         Xml.append("</bookViews>")
         
         Xml.append("<sheets>")
-        for i in 1...Sheets.count {
-            Xml.append("<sheet state=\"visible\" name=\"\(Sheets[i-1].title)\" sheetId=\"\(i)\" r:id=\"rId\(i+3)\"/>")
+        for i in 1...self.Sheets.count {
+            Xml.append("<sheet state=\"visible\" name=\"\(self.Sheets[i-1].title)\" sheetId=\"\(i)\" r:id=\"rId\(i+3)\"/>")
         }
         Xml.append("</sheets>")
         
@@ -618,6 +601,7 @@ final public class XWorkBook{
     private var HeadSheedXML: String {
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
     }
+
     private var HeadSheedXMLEnd: String {
         "</Relationships>"
     }
@@ -635,61 +619,68 @@ final public class XWorkBook{
     }
     
     /// prepare files for Xlsx file
-    private func preparefiles(for filePath: URL, overwrite: Bool = false) -> URL {
-        var CachePath = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
+    private func preparefiles(for filePath: URL, overwrite: Bool = false) -> URL? {
+        // delete file if already exists
+        if overwrite, FileManager.default.fileExists(atPath: filePath.path) {
+            do {
+                try FileManager.default.removeItem(atPath: filePath.path)
+            } catch {
+                print("Could not delete file, probably read-only filesystem")
+                return nil
+            }
+        }
         
+        var CachePath = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0]
         CachePath = "\(CachePath)/tmpxls"
         self.CheckCreateDirectory(path: CachePath)
         
         let FolderId = "folderxls\(arc4random())"
         let BasePath = "\(CachePath)/\(FolderId)"
-        self.CheckCreateDirectory(path: BasePath)
-        self.CheckCreateDirectory(path: "\(BasePath)/_rels")
-        self.CheckCreateDirectory(path: "\(BasePath)/docProps")
-        self.CheckCreateDirectory(path: "\(BasePath)/xl")
-        self.CheckCreateDirectory(path: "\(BasePath)/xl/media")
+        defer {
+            self.RemoveFile(path: BasePath)
+        }
         
+        guard self.CheckCreateDirectory(path: BasePath) else { return nil }
+        guard self.CheckCreateDirectory(path: "\(BasePath)/_rels") else { return nil }
+        guard self.CheckCreateDirectory(path: "\(BasePath)/docProps") else { return nil }
+        guard self.CheckCreateDirectory(path: "\(BasePath)/xl") else { return nil }
+        guard self.CheckCreateDirectory(path: "\(BasePath)/xl/media") else { return nil }
         
-        for (_,ximg) in XImages.list {
+        for (_, ximg) in XImages.list {
             ximg.Write(toPath: "\(BasePath)/xl/media/")
         }
         
+        guard self.CheckCreateDirectory(path: "\(BasePath)/xl/_rels") else { return nil }
+        guard self.CheckCreateDirectory(path: "\(BasePath)/xl/worksheets") else { return nil }
+        guard self.CheckCreateDirectory(path: "\(BasePath)/xl/worksheets/_rels") else { return nil }
+        guard self.CheckCreateDirectory(path: "\(BasePath)/xl/drawings") else { return nil }
+        guard self.CheckCreateDirectory(path: "\(BasePath)/xl/drawings/_rels") else { return nil }
         
-        
-        self.CheckCreateDirectory(path: "\(BasePath)/xl/_rels")
-        self.CheckCreateDirectory(path: "\(BasePath)/xl/worksheets")
-        self.CheckCreateDirectory(path: "\(BasePath)/xl/worksheets/_rels")
-        self.CheckCreateDirectory(path: "\(BasePath)/xl/drawings")
-        self.CheckCreateDirectory(path: "\(BasePath)/xl/drawings/_rels")
-        
-        self.CheckCreateDirectory(path: "\(BasePath)/xl/theme")
-        
+        guard self.CheckCreateDirectory(path: "\(BasePath)/xl/theme") else { return nil }
         let style = """
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Sheets"><a:themeElements><a:clrScheme name="Sheets"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="000000"/></a:dk2><a:lt2><a:srgbClr val="FFFFFF"/></a:lt2><a:accent1><a:srgbClr val="4285F4"/></a:accent1><a:accent2><a:srgbClr val="EA4335"/></a:accent2><a:accent3><a:srgbClr val="FBBC04"/></a:accent3><a:accent4><a:srgbClr val="34A853"/></a:accent4><a:accent5><a:srgbClr val="FF6D01"/></a:accent5><a:accent6><a:srgbClr val="46BDC6"/></a:accent6><a:hlink><a:srgbClr val="1155CC"/></a:hlink><a:folHlink><a:srgbClr val="1155CC"/></a:folHlink></a:clrScheme><a:fontScheme name="Sheets"><a:majorFont><a:latin typeface="Arial"/><a:ea typeface="Arial"/><a:cs typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/><a:ea typeface="Arial"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme><a:fmtScheme name="Office"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:lumMod val="110000"/><a:satMod val="105000"/><a:tint val="67000"/></a:schemeClr></a:gs><a:gs pos="50000"><a:schemeClr val="phClr"><a:lumMod val="105000"/><a:satMod val="103000"/><a:tint val="73000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:lumMod val="105000"/><a:satMod val="109000"/><a:tint val="81000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:satMod val="103000"/><a:lumMod val="102000"/><a:tint val="94000"/></a:schemeClr></a:gs><a:gs pos="50000"><a:schemeClr val="phClr"><a:satMod val="110000"/><a:lumMod val="100000"/><a:shade val="100000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:lumMod val="99000"/><a:satMod val="120000"/><a:shade val="78000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/><a:miter lim="800000"/></a:ln><a:ln w="12700" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/><a:miter lim="800000"/></a:ln><a:ln w="19050" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/><a:miter lim="800000"/></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst><a:outerShdw blurRad="57150" dist="19050" dir="5400000" algn="ctr" rotWithShape="0"><a:srgbClr val="000000"><a:alpha val="63000"/></a:srgbClr></a:outerShdw></a:effectLst></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"><a:tint val="95000"/><a:satMod val="170000"/></a:schemeClr></a:solidFill><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:tint val="93000"/><a:satMod val="150000"/><a:shade val="98000"/><a:lumMod val="102000"/></a:schemeClr></a:gs><a:gs pos="50000"><a:schemeClr val="phClr"><a:tint val="98000"/><a:satMod val="130000"/><a:shade val="90000"/><a:lumMod val="103000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:shade val="63000"/><a:satMod val="120000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements><a:objectDefaults/><a:extraClrSchemeLst/></a:theme>
-"""
-        self.Write(data: style, tofile: "\(BasePath)/xl/theme/theme1.xml")
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Sheets"><a:themeElements><a:clrScheme name="Sheets"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="000000"/></a:dk2><a:lt2><a:srgbClr val="FFFFFF"/></a:lt2><a:accent1><a:srgbClr val="4285F4"/></a:accent1><a:accent2><a:srgbClr val="EA4335"/></a:accent2><a:accent3><a:srgbClr val="FBBC04"/></a:accent3><a:accent4><a:srgbClr val="34A853"/></a:accent4><a:accent5><a:srgbClr val="FF6D01"/></a:accent5><a:accent6><a:srgbClr val="46BDC6"/></a:accent6><a:hlink><a:srgbClr val="1155CC"/></a:hlink><a:folHlink><a:srgbClr val="1155CC"/></a:folHlink></a:clrScheme><a:fontScheme name="Sheets"><a:majorFont><a:latin typeface="Arial"/><a:ea typeface="Arial"/><a:cs typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/><a:ea typeface="Arial"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme><a:fmtScheme name="Office"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:lumMod val="110000"/><a:satMod val="105000"/><a:tint val="67000"/></a:schemeClr></a:gs><a:gs pos="50000"><a:schemeClr val="phClr"><a:lumMod val="105000"/><a:satMod val="103000"/><a:tint val="73000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:lumMod val="105000"/><a:satMod val="109000"/><a:tint val="81000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:satMod val="103000"/><a:lumMod val="102000"/><a:tint val="94000"/></a:schemeClr></a:gs><a:gs pos="50000"><a:schemeClr val="phClr"><a:satMod val="110000"/><a:lumMod val="100000"/><a:shade val="100000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:lumMod val="99000"/><a:satMod val="120000"/><a:shade val="78000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/><a:miter lim="800000"/></a:ln><a:ln w="12700" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/><a:miter lim="800000"/></a:ln><a:ln w="19050" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/><a:miter lim="800000"/></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst><a:outerShdw blurRad="57150" dist="19050" dir="5400000" algn="ctr" rotWithShape="0"><a:srgbClr val="000000"><a:alpha val="63000"/></a:srgbClr></a:outerShdw></a:effectLst></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"><a:tint val="95000"/><a:satMod val="170000"/></a:schemeClr></a:solidFill><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:tint val="93000"/><a:satMod val="150000"/><a:shade val="98000"/><a:lumMod val="102000"/></a:schemeClr></a:gs><a:gs pos="50000"><a:schemeClr val="phClr"><a:tint val="98000"/><a:satMod val="130000"/><a:shade val="90000"/><a:lumMod val="103000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:shade val="63000"/><a:satMod val="120000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements><a:objectDefaults/><a:extraClrSchemeLst/></a:theme>
+        """
+        guard self.Write(data: style, tofile: "\(BasePath)/xl/theme/theme1.xml") else { return nil }
         
-        
-        self.Write(data: self.rels, tofile: "\(BasePath)/_rels/.rels")
-        self.Write(data: self.appXML, tofile: "\(BasePath)/docProps/app.xml")
-        self.Write(data: self.coreXML, tofile: "\(BasePath)/docProps/core.xml")
-        self.Write(data: self.SharedStrings, tofile: "\(BasePath)/xl/sharedStrings.xml")
-        self.Write(data: self.StyleStrings, tofile: "\(BasePath)/xl/styles.xml")
-        self.Write(data: self.ContentTypesStrings, tofile: "\(BasePath)/[Content_Types].xml")
-        self.Write(data: self.WorkBookXmlRelsStrings, tofile: "\(BasePath)/xl/_rels/workbook.xml.rels")
-        self.Write(data: self.WorkBookXmlStrings, tofile: "\(BasePath)/xl/workbook.xml")
+        guard self.Write(data: self.rels, tofile: "\(BasePath)/_rels/.rels") else { return nil }
+        guard self.Write(data: self.appXML, tofile: "\(BasePath)/docProps/app.xml") else { return nil }
+        guard self.Write(data: self.coreXML, tofile: "\(BasePath)/docProps/core.xml") else { return nil }
+        guard self.Write(data: self.SharedStrings, tofile: "\(BasePath)/xl/sharedStrings.xml") else { return nil }
+        guard self.Write(data: self.StyleStrings, tofile: "\(BasePath)/xl/styles.xml") else { return nil }
+        guard self.Write(data: self.ContentTypesStrings, tofile: "\(BasePath)/[Content_Types].xml") else { return nil }
+        guard self.Write(data: self.WorkBookXmlRelsStrings, tofile: "\(BasePath)/xl/_rels/workbook.xml.rels") else { return nil }
+        guard self.Write(data: self.WorkBookXmlStrings, tofile: "\(BasePath)/xl/workbook.xml") else { return nil }
         
         var i = 1
-        for sheet in Sheets {
-            
-            self.Write(data: sheet.xml!, tofile: "\(BasePath)/xl/worksheets/sheet\(i).xml")
+        for sheet in self.Sheets {
+            guard self.Write(data: sheet.xml!, tofile: "\(BasePath)/xl/worksheets/sheet\(i).xml") else { return nil }
             
             if let drawingsxml = sheet.drawingsxml {
-                self.Write(data: drawingsxml, tofile: "\(BasePath)/xl/drawings/drawing\(i).xml")
+                guard self.Write(data: drawingsxml, tofile: "\(BasePath)/xl/drawings/drawing\(i).xml") else { return nil }
             }
             if let drawingsxmlrels = sheet.drawingsxmlrels {
-                self.Write(data: drawingsxmlrels, tofile: "\(BasePath)/xl/drawings/_rels/drawing\(i).xml.rels")
+                guard self.Write(data: drawingsxmlrels, tofile: "\(BasePath)/xl/drawings/_rels/drawing\(i).xml.rels") else { return nil }
             }
             
             var rels = self.HeadSheedXML
@@ -697,33 +688,24 @@ final public class XWorkBook{
                 rels = "\(rels)\(drawingsSheetrels)"
             }
             rels = "\(rels)\(self.HeadSheedXMLEnd)"
-            self.Write(data: rels, tofile: "\(BasePath)/xl/worksheets/_rels/sheet\(i).xml.rels")
+            guard self.Write(data: rels, tofile: "\(BasePath)/xl/worksheets/_rels/sheet\(i).xml.rels") else { return nil }
             
             i += 1
         }
 
-        // delete file if already exists
-        if overwrite && FileManager.default.fileExists(atPath: filePath.path) {
-            do {
-                try FileManager.default.removeItem(atPath: filePath.path)
-            } catch {
-                print("Could not delete file, probably read-only filesystem")
-            }
-        }
-        
         let fileManager = FileManager()
         do {
             try fileManager.zipItem(at: URL(fileURLWithPath: BasePath), to: filePath, shouldKeepParent: false)
         } catch {
             print("Creation of ZIP archive failed with error:\(error)")
+            return nil
         }
-        self.RemoveFile(path: BasePath)
+        
         return filePath
     }
     
-    
     /// write xlxs file and return path
-    public func save(_ filePath:URL, overwrite: Bool = false) -> URL {
+    public func save(_ filePath: URL, overwrite: Bool = false) -> URL? {
         self.BuildStyles()
         self.BuildSheets()
         self.BuildMediaDrawings()
@@ -731,16 +713,16 @@ final public class XWorkBook{
     }
     
     /// generate example xlsx file
-    static public func test() -> Bool {
+    public static func test() -> Bool {
         let book = XWorkBook()
         
         let testBundle = Bundle(for: self).resourcePath!
         let pathBundle = testBundle.appending("/SwiftXLSX_SwiftXLSX.bundle")
         let BundleTest = Bundle(path: pathBundle)
         
-        var icons:[ImageClass] = []
-        for iconname in  ["green","blue","yellow","pin"] {
-            var img:ImageClass?
+        var icons: [ImageClass] = []
+        for iconname in ["green", "blue", "yellow", "pin"] {
+            var img: ImageClass?
 #if os(macOS)
             img = BundleTest?.image(forResource: iconname)
 #else
@@ -756,20 +738,18 @@ final public class XWorkBook{
         let logoicon = ImageClass(named: "swiftxlsxlogo", in: BundleTest, compatibleWith: nil)
 #endif
         
-        
-        let color:[ColorClass] = [.darkGray, .green, .lightGray, .orange, .systemPink, .cyan, .purple, .magenta, .blue]
-        var colortext:[ColorClass] = [.darkGray, .black, .white]
+        let color: [ColorClass] = [.darkGray, .green, .lightGray, .orange, .systemPink, .cyan, .purple, .magenta, .blue]
+        var colortext: [ColorClass] = [.darkGray, .black, .white]
 #if os(macOS)
-        colortext.append(contentsOf:[.textColor,.textBackgroundColor])
+        colortext.append(contentsOf: [.textColor, .textBackgroundColor])
 #else
-        colortext.append(contentsOf: [.darkText,.lightText])
+        colortext.append(contentsOf: [.darkText, .lightText])
 #endif
         
         func GetRandomFont() -> XFontName {
             let cases = XFontName.allCases
             return cases[Int.random(in: 0..<cases.count)]
         }
-        
         
         var sheet = book.NewSheet("Invoice")
         
@@ -778,20 +758,17 @@ final public class XWorkBook{
         cell.value = .icon(XImageCell(key: XImages.append(with: logoicon!)!, size: CGSize(width: 200, height: 75)))
         cell.alignmentHorizontal = .center
         
-        
-        
         cell = sheet.AddCell(XCoords(row: 2, col: 6))
         cell.Cols(txt: .white, bg: .systemOrange)
         cell.value = .text("INVOICE")
-        cell.Font = XFont(.TrebuchetMS, 16,true)
+        cell.Font = XFont(.TrebuchetMS, 16, true)
         cell.alignmentHorizontal = .center
         
         cell = sheet.AddCell(XCoords(row: 3, col: 6))
         cell.Cols(txt: .white, bg: .systemOrange)
         cell.value = .text("#12345")
-        cell.Font = XFont(.TrebuchetMS, 12,true)
+        cell.Font = XFont(.TrebuchetMS, 12, true)
         cell.alignmentHorizontal = .left
-        
         
         cell = sheet.AddCell(XCoords(row: 4, col: 1))
         cell.value = .text("[Address Line 1]")
@@ -802,7 +779,7 @@ final public class XWorkBook{
         cell = sheet.AddCell(XCoords(row: 7, col: 1))
         cell.color = .systemOrange
         cell.value = .text("Bill To:")
-        cell.Font = XFont(.TrebuchetMS, 12,true)
+        cell.Font = XFont(.TrebuchetMS, 12, true)
         
         cell = sheet.AddCell(XCoords(row: 8, col: 1))
         cell.value = .text("[Address Line 1]")
@@ -817,7 +794,7 @@ final public class XWorkBook{
         cell = sheet.AddCell(XCoords(row: 13, col: 1))
         cell.color = .systemOrange
         cell.value = .text("Invoice Date")
-        cell.Font = XFont(.TrebuchetMS, 12,true)
+        cell.Font = XFont(.TrebuchetMS, 12, true)
         
         cell = sheet.AddCell(XCoords(row: 14, col: 1))
         cell.value = .text("01/22/2022")
@@ -826,7 +803,7 @@ final public class XWorkBook{
         cell = sheet.AddCell(XCoords(row: 13, col: 2))
         
         cell.value = .text("Terms")
-        cell.Font = XFont(.TrebuchetMS, 12,true)
+        cell.Font = XFont(.TrebuchetMS, 12, true)
         
         cell = sheet.AddCell(XCoords(row: 14, col: 2))
         cell.value = .text("30 days")
@@ -835,7 +812,7 @@ final public class XWorkBook{
         cell = sheet.AddCell(XCoords(row: 13, col: 3))
         cell.color = .systemOrange
         cell.value = .text("Due Date")
-        cell.Font = XFont(.TrebuchetMS, 12,true)
+        cell.Font = XFont(.TrebuchetMS, 12, true)
         
         cell = sheet.AddCell(XCoords(row: 14, col: 3))
         cell.value = .text("02/20/2022")
@@ -852,19 +829,19 @@ final public class XWorkBook{
         cell.Cols(txt: .white, bg: .systemOrange)
         cell.Border = true
         cell.value = .text("Qty")
-        cell.Font = XFont(.TrebuchetMS, 10,true)
+        cell.Font = XFont(.TrebuchetMS, 10, true)
         
         cell = sheet.AddCell(XCoords(row: line, col: 5))
         cell.Cols(txt: .white, bg: .systemOrange)
         cell.Border = true
         cell.value = .text("Unit Price")
-        cell.Font = XFont(.TrebuchetMS, 10,true)
+        cell.Font = XFont(.TrebuchetMS, 10, true)
         
         cell = sheet.AddCell(XCoords(row: line, col: 6))
         cell.Cols(txt: .white, bg: .systemOrange)
         cell.Border = true
         cell.value = .text("Amount")
-        cell.Font = XFont(.TrebuchetMS, 10,true)
+        cell.Font = XFont(.TrebuchetMS, 10, true)
         
         /// line
         line += 1
@@ -891,7 +868,7 @@ final public class XWorkBook{
         line += 1
         cell = sheet.AddCell(XCoords(row: line, col: 1))
         
-        var bgColor:ColorClass
+        var bgColor: ColorClass
 #if os(macOS)
         bgColor = .lightGray
 #else
@@ -987,8 +964,6 @@ final public class XWorkBook{
         cell.value = .icon(XImageCell(key: XImages.append(with: logoicon!)!, size: CGSize(width: 400, height: 150)))
         cell.alignmentHorizontal = .center
         
-        
-        
         line += 7
         
         cell = sheet.AddCell(XCoords(row: line, col: 1))
@@ -1010,7 +985,6 @@ final public class XWorkBook{
         sheet.MergeRect(XRect(23, 1, 3, 1))
         sheet.MergeRect(XRect(24, 1, 3, 1))
         
-        
         sheet.ForColumnSetWidth(1, 100)
         sheet.ForColumnSetWidth(2, 70)
         sheet.ForColumnSetWidth(3, 60)
@@ -1018,20 +992,18 @@ final public class XWorkBook{
         sheet.ForColumnSetWidth(5, 70)
         sheet.ForColumnSetWidth(6, 90)
         
-        
         sheet = book.NewSheet("Icons")
         for col in 1...20 {
-            sheet.ForColumnSetWidth(col,20)
+            sheet.ForColumnSetWidth(col, 20)
             for row in 1...20 {
                 let cell = sheet.AddCell(XCoords(row: row, col: col))
                 cell.value = .icon(XImageCell(key: XImages.append(with: XImage(with: icons[Int.random(in: 0..<icons.count)])!), size: CGSize(width: 20, height: 20)))
             }
         }
         
-        
         sheet = book.NewSheet("Perfomance Sheet")
         for col in 1...20 {
-            sheet.ForColumnSetWidth(col,Int.random(in: 50..<100))
+            sheet.ForColumnSetWidth(col, Int.random(in: 50..<100))
             for row in 1...1000 {
                 let cell = sheet.AddCell(XCoords(row: row, col: col))
                 cell.value = .integer(Int.random(in: 100..<200000))
@@ -1044,7 +1016,6 @@ final public class XWorkBook{
             }
         }
         
-        
         let cacheDirectoryPaths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
         let fileid = book.save(cacheDirectoryPaths[0].appendingPathComponent("example.xlsx"))
         print("<<<File XLSX generated!>>>")
@@ -1055,14 +1026,14 @@ final public class XWorkBook{
 
 extension XWorkBook: Sequence {
     public func makeIterator() -> Array<XSheet>.Iterator {
-        return Sheets.makeIterator()
+        return self.Sheets.makeIterator()
     }
 }
 
 #if os(macOS)
 fileprivate extension NSFont {
     /// Calculate size text for current font
-    func Rectfor(_ str:String)-> CGSize {
+    func Rectfor(_ str: String) -> CGSize {
         let fontAttributes = [NSAttributedString.Key.font: self]
         let size = (str as NSString).size(withAttributes: fontAttributes)
         return size
@@ -1071,7 +1042,7 @@ fileprivate extension NSFont {
 #else
 fileprivate extension UIFont {
     /// Calculate size text for current font
-    func Rectfor(_ str:String)-> CGSize {
+    func Rectfor(_ str: String) -> CGSize {
         let fontAttributes = [NSAttributedString.Key.font: self]
         let size = (str as NSString).size(withAttributes: fontAttributes)
         return size
@@ -1079,10 +1050,8 @@ fileprivate extension UIFont {
 }
 #endif
 
-
-fileprivate extension String{
-    func XmlPrep() -> String
-    {
+private extension String {
+    func XmlPrep() -> String {
         let sm = NSMutableString()
         for (_, char) in self.enumerated() {
             switch char {
@@ -1103,8 +1072,7 @@ fileprivate extension String{
         return String(sm)
     }
     
-    func XSheetTitle() -> String
-    {
+    func XSheetTitle() -> String {
         let sm = NSMutableString()
         for (_, char) in self.enumerated() {
             switch char {
@@ -1131,9 +1099,9 @@ fileprivate extension String{
 }
 
 extension ColorClass {
-    static var hexdict:[UInt64:String] = [:]
+    static var hexdict: [UInt64: String] = [:]
     /// encode color to HEX format AARRGGBB use cache for optimization
-    var Hex:String?{
+    var Hex: String? {
         var r: CGFloat = 0
         var g: CGFloat = 0
         var b: CGFloat = 0
@@ -1150,11 +1118,11 @@ extension ColorClass {
         let bi = lroundf(Float(b) * 255)
         let ai = lroundf(Float(a) * 255)
         
-        let idcolor = UInt64(ai)*1000000000+UInt64(ri)*1000000+UInt64(gi)*1000+UInt64(bi)
+        let idcolor = UInt64(ai) * 1000000000+UInt64(ri) * 1000000+UInt64(gi) * 1000+UInt64(bi)
         if let hexcol = ColorClass.hexdict[idcolor] {
             return hexcol
-        }else{
-            let hexcolgen = String(format: "%02lX%02lX%02lX%02lX",ai,ri,gi,bi)
+        } else {
+            let hexcolgen = String(format: "%02lX%02lX%02lX%02lX", ai, ri, gi, bi)
             ColorClass.hexdict[idcolor] = hexcolgen
             return hexcolgen
         }
