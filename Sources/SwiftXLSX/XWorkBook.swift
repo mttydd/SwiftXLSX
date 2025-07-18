@@ -30,7 +30,8 @@ public final class XWorkBook {
     private var Fonts: [UInt64: (String, Int)] = [:]
     private var Fills: [String] = []
     private var colorsid: [String] = []
-    private var Bgcolor: [String] = []
+    private var BgcolorMap: [String: Int] = [:]
+    
     private var xfs: [UInt64: (String, Int)] = [:]
     private var Borders: [String] = []
     private var Drawings: [String] = []
@@ -72,7 +73,7 @@ public final class XWorkBook {
         self.valss.removeAll()
         self.valss.insert("")
         self.CHARSIZE.removeAll()
-        self.Bgcolor.removeAll()
+        self.BgcolorMap.removeAll()
     }
     
     private func findFont(_ cell: XCell) {
@@ -91,7 +92,7 @@ public final class XWorkBook {
                 idval += (UInt64(index)+1) * 1000000
             } else {
                 self.colorsid.append(hex)
-                idval += (UInt64(self.colorsid.count)+1) * 1000000
+                idval += UInt64(self.colorsid.count) * 1000000
             }
         }
         
@@ -107,19 +108,14 @@ public final class XWorkBook {
     
     private func findFills(_ cell: XCell) {
         let hexcolor = cell.colorbackground.Hex!
-        
-        if let index = self.Bgcolor.firstIndex(of: hexcolor) {
+        if let index = self.BgcolorMap[hexcolor] {
             cell.idFill = index
         } else {
-            self.Bgcolor.append(hexcolor)
-            let Fontxml = "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"\(hexcolor)\"/><bgColor indexed=\"64\"/></patternFill></fill>"
-            
-            if let indexfill = self.Fills.firstIndex(of: Fontxml) {
-                cell.idFill = indexfill
-            } else {
-                self.Fills.append(Fontxml)
-                cell.idFill = self.Fills.count-1
-            }
+            let index = self.BgcolorMap.count
+            self.BgcolorMap[hexcolor] = index
+            let xml = "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"\(hexcolor)\"/><bgColor indexed=\"64\"/></patternFill></fill>"
+            self.Fills.append(xml)
+            cell.idFill = self.Fills.count-1
         }
     }
     
@@ -260,9 +256,11 @@ public final class XWorkBook {
         
         self.Fonts[0] = ("<font><sz val=\"10\"/><color rgb=\"FF000000\"/><name val=\"Arial\"/></font>", 0)
         
+        self.BgcolorMap["<patternFill patternType=\"none\"/>"] = 0
         self.Fills.append("<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FFFFFFFF\"/><bgColor indexed=\"64\"/></patternFill></fill>")
         
-        self.Bgcolor.append("FFFFFFFF")
+        self.BgcolorMap["<patternFill patternType=\"gray125\"/>"] = 1
+        self.Fills.append("<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FFFFFFFF\"/><bgColor indexed=\"64\"/></patternFill></fill>")
         
         self.xfs[0] = ("<xf fontId=\"0\" numFmtId=\"0\" fillId=\"0\" borderId=\"0\" applyNumberFormat=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" textRotation=\"0\" wrapText=\"true\" shrinkToFit=\"false\"/></xf>", 0)
         
