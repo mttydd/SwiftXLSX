@@ -291,18 +291,19 @@ public final class XWorkBook {
         }
         
         Xml.append("<sheetViews>")
+        let zoomText = sheet.zoom == nil ? "" : "zoomScale=\"\(sheet.zoom.unsafelyUnwrapped)\""
         if (sheet.fix.row+sheet.fix.col) == 0 {
-            Xml.append("<sheetView workbookViewId=\"0\" />")
+            Xml.append("<sheetView workbookViewId=\"0\" \(zoomText)/>")
         } else if sheet.fix.row > 0, sheet.fix.col == 0 {
-            Xml.append("<sheetView workbookViewId=\"0\">")
+            Xml.append("<sheetView workbookViewId=\"0\" \(zoomText)>")
             Xml.append("<pane ySplit=\"\(sheet.fix.row)\" topLeftCell=\"A\(sheet.fix.row+1)\" activePane=\"bottomLeft\" state=\"frozen\"/>")
             Xml.append("</sheetView>")
         } else if sheet.fix.row == 0, sheet.fix.col > 0 {
-            Xml.append("<sheetView workbookViewId=\"0\">")
+            Xml.append("<sheetView workbookViewId=\"0\" \(zoomText)>")
             Xml.append("<pane xSplit=\"\(sheet.fix.col)\" topLeftCell=\"\(XSheet.EncodeNumberABC(sheet.fix.col))1\" activePane=\"topRight\" state=\"frozen\"/>")
             Xml.append("</sheetView>")
         } else {
-            Xml.append("<sheetView workbookViewId=\"0\">")
+            Xml.append("<sheetView workbookViewId=\"0\" \(zoomText)>")
             Xml.append("<pane xSplit=\"\(sheet.fix.col)\" ySplit=\"\(sheet.fix.row)\" topLeftCell=\"\(XSheet.EncodeNumberABC(sheet.fix.col))\(sheet.fix.row+1)\" activePane=\"bottomRight\" state=\"frozen\"/>")
             Xml.append("</sheetView>")
         }
